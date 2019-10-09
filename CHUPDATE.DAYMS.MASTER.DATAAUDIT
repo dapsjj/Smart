@@ -1,0 +1,146 @@
+#!/bin/bash -xv
+#
+# CHUPDATE.DAYMS.MASTER.DATAAUDIT>> 監査マスター作成
+# Usage : CHUPDATE.DAYMS.MASTER.DATAAUDIT '20191001' '20191005' 
+#
+# Written by song.jiajun /Date : 20191009
+# Modified by song.jiajun /Date : 20191009
+
+
+#/////////////////////////////////////////////////////////////////////////
+# 初期設定
+#/////////////////////////////////////////////////////////////////////////
+# パスの定義
+export PATH=/home/SMART_TRIAL:/home/SMART:/usr/local/bin:${PATH}
+export LANG=ja_JP.UTF-8
+
+HOME=/home/creat
+logd=${HOME}/LOG                                           # ログディレクトリ
+
+# 走行ログの記録
+echo   "${logd}/LOG.$(basename $0).$(date +%Y%m%d)_$(date +%H%M%S)_$$" &> /dev/null
+exec 2> ${logd}/LOG.$(basename $0).$(date +%Y%m%d)_$(date +%H%M%S)_$$
+
+# 変数の定義
+semd=${HOME}/SEMAPHORE
+tmp=/tmp/$$-$(basename $0)_$(date +%Y%m%d)_$(date +%H%M%S)
+sday=$(date +%Y%m%d)                             # 日付
+masterd=/TORASINNYOU/TBL/DATAAUDIT
+lv3d=/TORASINNYOU/LV3/DATAAUDIT/SIRE/TANPIN_SIRE_MEISAI                       # Level3ディレクトリ
+#lv3d1=/TORASINNYOU/LV3/JINJI                     # Level3ディレクトリ1
+paraStartDate=$1                                 # 開始日
+paraEndDate=$2                                   # 終了日
+stime=$(date +%Y%m%d%H%M%S)_$$
+
+# エラー時の終了処理定義
+ERROR_EXIT(){
+  touch ${semd}/$(basename $0).${HOSTNAME}.ERROR.${sday}
+  exit 1
+}
+
+#SEMAPHORE削除
+rm -rf ${semd}/$(basename $0)*${sday}
+
+
+#/////////////////////////////////////////////////////////////////////////
+# 処理部分
+#/////////////////////////////////////////////////////////////////////////
+
+
+#判断masterファイルPuchaseGroupJAN和PurchaseGroupStore存在,生成第一张Master表BranchJanMaster数据
+if [ -e ${masterd}/PuchaseGroupJAN -a -e ${masterd}/PurchaseGroupStore ];then
+		cat ${masterd}/PuchaseGroupJAN                                            |
+		fmtfixed -w2 -c1                                                          |
+		fmtfixed -w20 -c2 -c4                                                     |
+		ssort -k1                                                                 >${tmp}-PuchaseGroupJAN  
+		#テキスト"${tmp}-PuchaseGroupJAN"10列の内容:		
+		#1.PurchaseGroupCD 2.製品CD 3.製品名 4.原料CD 5.原料名	
+		#6.製品売価 7.製品入数 8.使用量 9.単位入数 10.単位
+
+		cat ${masterd}/PurchaseGroupStore                                         | 
+		selrow -e '$5==0'                                                         |
+		selcol -c1,5                                                              |
+		fmtfixed -w2 -c1                                                          |
+		fmtfixed -w4 -c3                                                          |
+		ssort -k1                                                                 |   
+		crossjoin -k1 - ${tmp}-PuchaseGroupJAN                                    |
+		#1.PurchaseGroupCD 2.PurchaseGroupName 3.BranchCD 4.BranchName 5.IsClosed
+		#6.製品CD	 7.製品名 8.原料CD 9.原料名 10.製品売価 
+		#11.製品入数 12.使用量 13.単位入数 14.単位
+		selcol -c3,14                                                             >${masterd}/BranchJanMaster
+		#テキスト"${tmp}-PurchaseGroupStore-PuchaseGroupJAN"12列の内容:
+		#1.BranchCD 2.BranchName 3.IsClosed 4.製品CD	5.製品名 
+		#6.原料CD 7.原料名 8.製品売価 9.製品入数 10.使用量 
+		#11.単位入数 12.単位
+		[ $(errchk  ${PIPESTATUS[@]}) -eq 0 ] || ERROR_EXIT
+else
+  ERROR_EXIT
+fi
+
+
+#将${masterd}/BranchJanMaster按照"原料CD"去重生成temp1
+if [ -s ${masterd}/BranchJanMaster ];then 
+		#BranchJanMasterの第6列を取る
+		selcol -c6  ${masterd}/BranchJanMaster                                   |
+		kuniq -k1                                                                >${tmp}-temp1
+		#テキスト"${tmp}-temp1"1列の内容:
+		#1.原料CD  
+else
+  ERROR_EXIT
+fi
+
+
+#按照开始结束日期取仕入数据
+sdate -e ${paraStartDate} ${paraEndDate}                                         |
+tov                                                                              |
+while read day;do
+	if [ -e ${lv3d}/${day}.gz ];then 
+		zcat ${lv3d}/${day}.gz                                                   |
+		#1.伝票NO　2.納品日　3.店CD　4.ベンダーCD　5.行NO　
+        #6.更新種別 7.更新日付 8.財務計上日　9.処理日 10.伝票区分　
+        #11.原材料JAN 12.納品数 13.原価金額 14.売価金額
+		fmtfixed -w4 -c3                                                         |
+		fmtfixed -w20 -c11                                                       >>${tmp}-SIRE
+		#テキスト"${tmp}-SIRE"14列の内容:
+		#1.伝票NO　2.納品日　3.店CD　4.ベンダーCD　5.行NO　
+        #6.更新種別 7.更新日付 8.財務計上日　9.処理日 10.伝票区分　
+        #11.原材料JAN 12.納品数 13.原価金額 14.売価金額
+		[ $(errchk ${PIPESTATUS[@]}) -eq 0 ] || ERROR_EXIT
+	fi
+:;done
+
+
+#用${tmp}-temp1的原材料JAN(原料CD)过滤${tmp}-SIRE中的数据,生成${tmp}-temp2
+if [ -s ${tmp}-temp1 -a -s ${tmp}-SIRE ];then 
+		hejoin -k11 ${tmp}-temp1   ${tmp}-SIRE                           >${tmp}-temp2
+		#テキスト"${tmp}-temp2"14列の内容:
+		#1.伝票NO　2.納品日　3.店CD　4.ベンダーCD　5.行NO　
+        #6.更新種別 7.更新日付 8.財務計上日　9.処理日 10.伝票区分　
+        #11.原材料JAN 12.納品数 13.原価金額 14.売価金額
+else
+  ERROR_EXIT
+fi
+
+
+#用${tmp}-temp2按照店、原材料JAN分组,取时间最大的一条生成${tmp}-temp3
+#lstrow -k2   
+if [ -s ${tmp}-temp2 ];then 
+		cat  ${tmp}-temp2                                                       |
+		selcol -c3 -c11 -c2 -c1 -c4,10 -c12,14                                  |
+		ssort -k1,3                                                             |   
+		lstrow -k1,2                                                            >${tmp}-temp3
+		#テキスト"${tmp}-temp2"14列の内容:
+		#1.店CD 2.原材料JAN 3.納品日 4.伝票NO 5.ベンダーCD
+		#6.行NO 7.更新種別 8.更新日付 9.財務計上日 10.処理日
+		#11.伝票区分 12.納品数 13.原価金額 14.売価金額
+else
+  ERROR_EXIT
+fi
+
+
+
+
+# 終了
+#rm -Rf ${tmp}-* &>/dev/null
+exit 0
+
