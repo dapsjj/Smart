@@ -138,6 +138,58 @@ else
 fi
 
 
+#判断${masterd}/BranchJanMasterMultipleRateMaster存在,不存在则插入,存在则更新
+if [ -s ${tmp}-temp3 ];then
+	cat ${tmp}-temp3                                                             |
+	ssort -k1,2                                                                  >${tmp}-file1
+	#テキスト"${tmp}-file1"14列の内容:
+	#1.店CD 2.原材料JAN 3.納品日 4.伝票NO 5.ベンダーCD
+	#6.行NO 7.更新種別 8.更新日付 9.財務計上日 10.処理日
+	#11.伝票区分 12.納品数 13.原価金額 14.売価金額
+	[ $(errchk  ${PIPESTATUS[@]}) -eq 0 ] || ERROR_EXIT
+  
+	cat ${masterd}/BranchJanMaster                                               |
+	#1.BranchCD 2.BranchName 3.IsClosed 4.製品CD 5.製品名 
+	#6.原料CD 7.原料名 8.製品売価 9.製品入数 10.使用量 
+	#11.単位入数 12.単位
+	selcol -c1 -c6 -c2,5 -c7,12                                                  >${tmp}-file2
+	#テキスト"${tmp}-file2"12列の内容:
+	#1.BranchCD 2.原料CD 3.BranchName 4.IsClosed 5.製品CD
+	#6.製品名 7.原料名 8.製品売価 9.製品入数 10.使用量 
+	#11.単位入数 12.単位
+	[ $(errchk  ${PIPESTATUS[@]}) -eq 0 ] || ERROR_EXIT
+  
+	hijoin -k1,2  ${tmp}-file1  ${tmp}-file2                                     |
+	#1.店CD 2.原材料JAN 3.納品日 4.伝票NO 5.ベンダーCD
+	#6.行NO 7.更新種別 8.更新日付 9.財務計上日 10.処理日
+	#11.伝票区分 12.納品数 13.原価金額 14.売価金額 15.BranchName 
+	#16.IsClosed 17.製品CD 18.製品名 19.原料名 20.製品売価 
+	#21.製品入数 22.使用量 23.単位入数 24.単位
+	scalc '$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14/$12,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$20/($14/$12/$23*$21)'  >${tmp}-temp4
+	#テキスト"${tmp}-temp4"25列の内容:
+	#1.店CD 2.原材料JAN 3.納品日 4.伝票NO 5.ベンダーCD
+	#6.行NO 7.更新種別 8.更新日付 9.財務計上日 10.処理日
+	#11.伝票区分 12.納品数 13.原価金額 14.売価金額 15.売価金額/納品数
+	#16.BranchName 17.IsClosed 18.製品CD 19.製品名 20.原料名 
+	#21.製品売価 22.製品入数 23.使用量 24.単位入数 25.単位
+	#26.売価倍率
+	[ $(errchk  ${PIPESTATUS[@]}) -eq 0 ] || ERROR_EXIT
+  
+	#差分${masterd}/BranchJanMasterMultipleRateMaster数据
+	if [ -e ${masterd}/BranchJanMasterMultipleRateMaster ];then
+		cat ${masterd}/BranchJanMasterMultipleRateMaster                         |
+		hejoin -v -k1,2 ${tmp}-temp4                                             |
+		cat - ${tmp}-temp4                                                       >${tmp}-new1
+		[ $(errchk  ${PIPESTATUS[@]}) -eq 0 ] || ERROR_EXIT
+
+		cat ${tmp}-new1                                                          >${masterd}/BranchJanMasterMultipleRateMaster
+		[ $(errchk  ${PIPESTATUS[@]}) -eq 0 ] || ERROR_EXIT
+	else
+		cat ${tmp}-temp4                                                         >${masterd}/BranchJanMasterMultipleRateMaster
+		[ $(errchk  ${PIPESTATUS[@]}) -eq 0 ] || ERROR_EXIT
+	fi
+
+fi
 
 
 # 終了
