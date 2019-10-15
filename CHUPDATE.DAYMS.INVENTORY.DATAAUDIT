@@ -1,0 +1,134 @@
+#!/bin/bash -xv
+#
+# CHUPDATE.DAYMS.INVENTORY.DATAAUDIT>> 監査INVENTORY作成
+# Usage : CHUPDATE.DAYMS.INVENTORY.DATAAUDIT '20191001' 
+#
+# Written by song.jiajun /Date : 20191015
+# Modified by song.jiajun /Date : 20191015
+
+
+#/////////////////////////////////////////////////////////////////////////
+# 初期設定
+#/////////////////////////////////////////////////////////////////////////
+# パスの定義
+export PATH=/home/SMART_TRIAL:/home/SMART:/usr/local/bin:${PATH}
+export LANG=ja_JP.UTF-8
+
+HOME=/home/creat
+logd=${HOME}/LOG                                           # ログディレクトリ
+
+# 走行ログの記録
+echo   "${logd}/LOG.$(basename $0).$(date +%Y%m%d)_$(date +%H%M%S)_$$" &> /dev/null
+exec 2> ${logd}/LOG.$(basename $0).$(date +%Y%m%d)_$(date +%H%M%S)_$$
+
+# 変数の定義
+semd=${HOME}/SEMAPHORE
+tmp=/tmp/$$-$(basename $0)_$(date +%Y%m%d)_$(date +%H%M%S)
+sday=$(date +%Y%m%d)                             # 日付
+masterd=/TORASINNYOU/TBL/DATAAUDIT
+lv3d=/TORASINNYOU/LV3/DATAAUDIT/INVENTORY        # Level3ディレクトリ
+#lv3d1=/TORASINNYOU/LV3/JINJI                    # Level3ディレクトリ1
+paraDate=$1                                      # 棚卸日
+stime=$(date +%Y%m%d%H%M%S)_$$
+
+# エラー時の終了処理定義
+ERROR_EXIT(){
+  touch ${semd}/$(basename $0).${HOSTNAME}.ERROR.${sday}
+  exit 1
+}
+
+#SEMAPHORE削除
+rm -rf ${semd}/$(basename $0)*${sday}
+
+
+#/////////////////////////////////////////////////////////////////////////
+# 処理部分
+#/////////////////////////////////////////////////////////////////////////
+
+#判断LV3ファイルINVENTORYCOUNTDETAILS.gz存在
+if [ -e ${lv3d}/INVENTORYCOUNTDETAILS.gz ];then 
+		#INVENTORYCOUNTDETAILS.gzの第6列を取る
+		zcat   ${lv3d}/INVENTORYCOUNTDETAILS.gz                                  |
+		selcol -c1 -c13,14 -c18 -c20 -c22 -c16 -c32                              | 
+		#1.inventoryscheduleid(店CD) 2.productcd(JAN(原料)) 3.productname(原料名) 4.costprice(単価(原料)) 5.countqty(数量)
+		#6.sellbydate(賞味期限) 7.specname(規格) 8.registered(棚卸日YYYYMMDDHHMISS)
+		awk '{print substr($1,10,3),$2,$3,$4,$5,$6,$7,substr($8,0,4)substr($8,5,2)substr($8,7,2),substr($8,9,2)":"substr($8,11,2)":"substr($8,13,2)}'  |
+		#1.inventoryscheduleid(店CD) 2.productcd(JAN(原料)) 3.productname(原料名) 4.costprice(単価(原料)) 5.countqty(数量)
+		#6.sellbydate(賞味期限) 7.specname(規格) 8.registered(棚卸日YYYYMMDD) 9.registered(棚卸日HH:MI:SS)
+		selrow -e '$8=="'${paraDate}'"'                                          |
+		fmtfixed -w4 -c1                                                         |
+		fmtfixed -w20 -c2                                                        |
+		crossjoin <(echo "09棚卸数")                                               >${tmp}-inventorycountdetails
+		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.productname(原料名) 5.costprice(単価(原料)) 
+		#6.countqty(数量) 7.sellbydate(賞味期限) 8.specname(規格) 9.registered(棚卸日YYYYMMDD) 10.registered(棚卸日HH:MI:SS)
+else
+  ERROR_EXIT
+fi
+
+
+#判断${tmp}-inventorycountdetails、${masterd}/BranchJanMaster存在
+if [ -s ${tmp}-inventorycountdetails -a -s ${masterd}/BranchJanMaster ];then 
+		cat ${masterd}/BranchJanMaster                                          |
+		#1.BranchCD 2.BranchName 3.IsClosed 4.製品CD	5.製品名 
+		#6.原料CD 7.原料名 8.製品売価 9.製品入数 10.使用量 
+		#11.単位入数 12.単位
+		selcol -c1 -c6 -c2 -c4                                                  >${tmp}-BranchJanMaster
+		#テキスト"${tmp}-BranchJanMaster"4列の内容:
+		#1.BranchCD 2.原料CD 3.BranchName 4.製品CD 
+		
+		hijoin -k2,3 ${tmp}-BranchJanMaster ${tmp}-inventorycountdetails        >${tmp}-BranchJanMaster-inventorycountdetails
+		#テキスト"${tmp}-BranchJanMaster-inventorycountdetails"12列の内容:
+		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.BranchName(店舗名) 5.製品CD 
+		#6.productname(原料名) 7.costprice(単価(原料)) 8.countqty(数量) 9.sellbydate(賞味期限) 10.specname(規格) 
+		#11.registered(棚卸日YYYYMMDD) 12.registered(棚卸日HH:MI:SS)	
+else
+  ERROR_EXIT
+fi
+
+
+#判断${tmp}-BranchJanMaster-inventorycountdetails、${masterd}/BranchJanMasterMultipleRateMaster存在
+if [ -s ${tmp}-BranchJanMaster-inventorycountdetails -a -s ${masterd}/BranchJanMasterMultipleRateMaster ];then 
+		cat ${masterd}/BranchJanMasterMultipleRateMaster                        |
+		#1.店CD 2.原材料JAN 3.納品日 4.伝票NO 5.ベンダーCD
+		#6.行NO 7.更新種別 8.更新日付 9.財務計上日 10.処理日
+		#11.伝票区分 12.納品数 13.原価金額 14.売価金額 15.売価金額/納品数
+		#16.BranchName 17.IsClosed 18.製品CD 19.製品名 20.原料名 
+		#21.製品売価 22.製品入数 23.使用量 24.単位入数 25.単位
+		#26.売価倍率
+		selcol -c1 -c2 -c26                                                     >${tmp}-BranchJanMasterMultipleRateMaster
+		#テキスト"${tmp}-BranchJanMasterMultipleRateMaster"3列の内容:
+		#1.店CD 2.原材料JAN 3.売価倍率  
+		
+		hrjoin -k2,3 -i1 ${tmp}-BranchJanMasterMultipleRateMaster ${tmp}-BranchJanMaster-inventorycountdetails        >${tmp}-rate
+		#テキスト"${tmp}-rate"13列の内容:
+		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名) 
+		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.sellbydate(賞味期限)
+		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS)		
+else
+  ERROR_EXIT
+fi
+
+
+#计算ダラー
+if [ -s ${tmp}-rate ];then 
+		cat ${tmp}-rate                                                         |
+		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名) 
+		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.sellbydate(賞味期限)
+		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS)		
+		scalc '$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$8*$9*$4'  >${tmp}-temp4
+		#テキスト"${tmp}-rate"13列の内容:
+		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名) 
+		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.sellbydate(賞味期限)
+		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー		
+else
+  ERROR_EXIT
+fi
+
+
+#19000101000000
+
+
+# 終了
+#rm -Rf ${tmp}-* &>/dev/null
+exit 0
+
