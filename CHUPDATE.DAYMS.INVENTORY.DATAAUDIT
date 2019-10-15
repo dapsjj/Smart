@@ -111,12 +111,12 @@ fi
 
 #计算ダラー
 if [ -s ${tmp}-rate ];then 
-		cat ${tmp}-rate                                                         |
+		cat ${tmp}-rate                                                                                 |
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名) 
 		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.sellbydate(賞味期限)
 		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS)		
-		scalc '$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$8*$9*$4'  >${tmp}-temp4
-		#テキスト"${tmp}-rate"13列の内容:
+		scalc '$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$8*$9*$4'                                     >${tmp}-dala
+		#テキスト"${tmp}-rate"14列の内容:
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名) 
 		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.sellbydate(賞味期限)
 		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー		
@@ -125,7 +125,41 @@ else
 fi
 
 
+#echo 'A店 apple 1900 1 A店 apple 2005 2 A店 apple 2010 3' | tov -n4 | ssort -k1,3 | toh -k1,2 | awk '{
+#for(i=3;i<=NF;i=i+2)
+#{$3=="1900"?$3=$i:$3=$3;
+#i==3?$4=$4:$4=$4+$(i+1)};
+#{print $1,$2,$3,$4}
+#}'
+
 #19000101000000
+
+#区分	 拠点CD	店舗名	JAN	商品名	日付	時間帯CD	ユニット	ダラー	店舗在庫高	最短賞味期限
+#04売数	362	鞍手	2531214000000	北海道産４種類チーズささみフライ	2019/7/15	14	1	299	299	
+
+#按照区分、店CD、店舗名、分组合计ダラー并取时间最小
+if [ -s ${tmp}-dala ];then 
+		cat ${tmp}-dala                                                                                 |
+		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名) 
+		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.sellbydate(賞味期限)
+		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー	
+		selcol -c1,2 -c5 -c3 -c7 -c12,13 -c9 -c10 -c14                                                  |
+		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.BranchName(店舗名) 4.productcd(JAN(原料)) 5.productname(原料名)
+		#6.registered(棚卸日YYYYMMDD)(日付) 7.registered(棚卸日HH:MI:SS)(時間帯CD) 8.countqty(数量)(ユニット) 9.sellbydate(賞味期限) 10.ダラー
+		ssort -k1,9 | toh -k1,8 | awk '{                  \
+		for(i=9;i<=NF;i=i+2)                              \
+		{$9=="19000101000000"?$9=$i:$9=$9;                \
+		i==9?$10=$10:$10=$10+$(i+1)};                     \
+		{print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}}'	                                                    >${tmp}-Inventory 
+else
+  ERROR_EXIT
+fi
+
+
+
+
+
+
 
 
 # 終了
