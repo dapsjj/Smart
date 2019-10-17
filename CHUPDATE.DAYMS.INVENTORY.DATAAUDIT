@@ -50,6 +50,13 @@ rm -rf ${semd}/$(basename $0)*${sday}
 if [ -e ${lv3d}/INVENTORYCOUNTDETAILS.gz ];then 
 		#INVENTORYCOUNTDETAILS.gzの第6列を取る
 		zcat   ${lv3d}/INVENTORYCOUNTDETAILS.gz                                  |
+		#1.[inventoryscheduleid] 2.[countno] 3.[countline] 4.[inventoryareacd] 5.[inventorylocationcd] 
+		#6.[shelf] 7.[face] 8.[counttype] 9.[countusercd] 10.[departmentcd]
+		#11.[subdeptcd] 12.[varietycd] 13.[productcd] 14.[productname] 15.[vendorcd] 
+		#16.[specname] 17.[brandname] 18.[costprice] 19.[retailprice] 20.[countqty] 
+		#21.[confirmqty] 22.[sellbydate] 23.[iscostretailinput] 24.[isretailpriceinput] 25.[countproductstatus] 
+		#26.[isholdingcount] 27.[locationerrortype] 28.[convertproductcode] 29.[InventorySheetNo] 30.[Remark]
+		#31.[author] 32.[registered] 33.[maintainer] 34.[modified]
 		selcol -c1 -c13,14 -c18 -c20 -c22 -c16 -c32                              | 
 		#1.inventoryscheduleid(店CD) 2.productcd(JAN(原料)) 3.productname(原料名) 4.costprice(単価(原料)) 5.countqty(数量)
 		#6.sellbydate(賞味期限) 7.specname(規格) 8.registered(棚卸日YYYYMMDDHHMISS)
@@ -239,7 +246,7 @@ if [ -s ${tmp}-materialcheckdatainfo-dala-union ];then
 		selcol -c2 -c6 -c7 -c1 -c3 -c4 -c5 -c8 -c10,11 -c9                           >/TORASINNYOU/TBL/DATAAUDIT/Inventory
 		#テキスト"/TORASINNYOU/TBL/DATAAUDIT/Inventory"11列の内容:
 		#1.拠点CD 2.製品CD 3.日付 4.区分 5.店舗名 
-		#6.productcd(JAN(原料)) 7.productname(原料名) 8.時間帯CD 9.ユニット 10.ダラー 11.賞味期限
+		#6.productcd(JAN(原料)) 7.productname(原料名) 8.時間帯CD 9.SUM(数量) 10.SUM(ダラー) 11.賞味期限
 else
   ERROR_EXIT
 fi
