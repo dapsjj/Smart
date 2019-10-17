@@ -225,7 +225,7 @@ if [ -s ${tmp}-materialcheckdatainfo-dala-union ];then
 		#11.ダラー	
 		selcol -c1,3 -c5 -c6 -c4 -c7,11                                                                  |
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.BranchName(店舗名) 4.productcd(JAN(原料)) 5.productname(原料名)
-		#6.製品CD 7.registered(棚卸日YYYYMMDD)(日付) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.sellbydate(賞味期限) 10.countqty(数量)(ユニット) 
+		#6.製品CD 7.registered(棚卸日YYYYMMDD)(日付) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.賞味期限 10.countqty(数量)(ユニット) 
 		#11.ダラー
 		ssort -k1,9 | toh -k1,8 | awk '{                  \
 		for(i=9;i<=NF;i=i+3)                              \
@@ -234,7 +234,7 @@ if [ -s ${tmp}-materialcheckdatainfo-dala-union ];then
 		i==9?$11=$11:$11=$11+$(i+2)};                     \
 		{print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11}}'	                                                    |
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.BranchName(店舗名) 4.productcd(JAN(原料)) 5.productname(原料名)
-		#6.製品CD 7.registered(棚卸日YYYYMMDD)(日付) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.sellbydate(賞味期限) 10.countqty(数量)(ユニット) 
+		#6.製品CD 7.registered(棚卸日YYYYMMDD)(日付) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.賞味期限 10.countqty(数量)(ユニット) 
 		#11.ダラー
 		selcol -c2 -c6 -c7 -c1 -c3 -c4 -c5 -c8 -c10,11 -c9                           >/TORASINNYOU/TBL/DATAAUDIT/Inventory
 		#テキスト"/TORASINNYOU/TBL/DATAAUDIT/Inventory"11列の内容:
