@@ -1,7 +1,7 @@
 #!/bin/bash -xv
 #
 # CHUPDATE.DAYMS.INVENTORY.DATAAUDIT>> 監査INVENTORY作成
-# Usage : CHUPDATE.DAYMS.INVENTORY.DATAAUDIT '20191001' 
+# Usage : CHUPDATE.DAYMS.INVENTORY.DATAAUDIT '20191001' '20191005'
 #
 # Written by song.jiajun /Date : 20191015
 # Modified by song.jiajun /Date : 20191015
@@ -28,8 +28,9 @@ sday=$(date +%Y%m%d)                             # 日付
 masterd=/TORASINNYOU/TBL/DATAAUDIT
 lv3d=/TORASINNYOU/LV3/DATAAUDIT/INVENTORY        # Level3ディレクトリ
 lv3d1=/TORASINNYOU/LV3/DATAAUDIT/MATERIALCHECKDATAINFO                    # Level3ディレクトリ1
-paraDate=$1                                      # 棚卸日
-paraFlag=$2                                      # flag==1不更新能连接到MATERIALCHECKDATAINFO.gz对应数据賞味期限,flag==2更能连接到MATERIALCHECKDATAINFO.gz的賞味期限
+paraStartDate=$1                                      # 開始棚卸日
+paraEndDate=$2                                        # 終了棚卸日
+paraFlag=$3                                           # flag==1不更新能连接到MATERIALCHECKDATAINFO.gz对应数据賞味期限,flag==2更能连接到MATERIALCHECKDATAINFO.gz的賞味期限
 stime=$(date +%Y%m%d%H%M%S)_$$
 
 # エラー時の終了処理定義
@@ -62,16 +63,38 @@ if [ -e ${lv3d}/INVENTORYCOUNTDETAILS.gz ];then
 		#6.sellbydate(賞味期限) 7.specname(規格) 8.registered(棚卸日YYYYMMDDHHMISS)
 		awk '{print substr($1,10,3),$2,$3,$4,$5,$6,$7,substr($8,0,4)substr($8,5,2)substr($8,7,2),"_"}'  |
 		#1.inventoryscheduleid(店CD) 2.productcd(JAN(原料)) 3.productname(原料名) 4.costprice(単価(原料)) 5.countqty(数量)
-		#6.sellbydate(賞味期限) 7.specname(規格) 8.registered(棚卸日YYYYMMDD) 9.registered(棚卸日HH:MI:SS)
-		selrow -e '$8=="'${paraDate}'"'                                          |
+		#6.sellbydate(賞味期限) 7.specname(規格) 8.registered(棚卸日YYYYMMDD) 9.registered(棚卸日HH:MI:SS)		
+		selrow -e '$8>='${paraStartDate}'&&$8<='${paraEndDate}                   |
 		fmtfixed -w4 -c1                                                         |
 		fmtfixed -w20 -c2                                                        |
-		crossjoin <(echo "09棚卸数")                                               >${tmp}-inventorycountdetails
+		crossjoin <(echo "09棚卸数")                                               >${tmp}-inventorycountdetails-1
+		#テキスト"${tmp}-inventorycountdetails-1"10列の内容:
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.productname(原料名) 5.costprice(単価(原料)) 
 		#6.countqty(数量) 7.sellbydate(賞味期限) 8.specname(規格) 9.registered(棚卸日YYYYMMDD) 10.registered(棚卸日HH:MI:SS)
 else
   ERROR_EXIT
 fi
+
+
+#判断${tmp}-inventorycountdetails-1存在
+if [ -s ${tmp}-inventorycountdetails-1 ];then 
+		cat ${tmp}-inventorycountdetails-1                                          |
+		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.productname(原料名) 5.costprice(単価(原料)) 
+		#6.countqty(数量) 7.sellbydate(賞味期限) 8.specname(規格) 9.registered(棚卸日YYYYMMDD) 10.registered(棚卸日HH:MI:SS)
+		awk '{print $0,"'${paraEndDate}'"}'                                         |
+		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.productname(原料名) 5.costprice(単価(原料)) 
+		#6.countqty(数量) 7.sellbydate(賞味期限) 8.specname(規格) 9.registered(棚卸日YYYYMMDD) 10.registered(棚卸日HH:MI:SS)
+		#11.終了棚卸日(YYYYMMDD)
+		selcol -c1,8 -c11 -c10                                                      >${tmp}-inventorycountdetails
+		#テキスト"${tmp}-inventorycountdetails"10列の内容:
+		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.productname(原料名) 5.costprice(単価(原料)) 
+		#6.countqty(数量) 7.sellbydate(賞味期限) 8.specname(規格) 9.終了棚卸日(棚卸日YYYYMMDD) 10.registered(棚卸日HH:MI:SS)
+		
+else
+  ERROR_EXIT
+fi
+
+
 
 
 #判断${tmp}-inventorycountdetails、${masterd}/BranchJanMaster存在
@@ -88,7 +111,7 @@ if [ -s ${tmp}-inventorycountdetails -a -s ${masterd}/BranchJanMaster ];then
 		#テキスト"${tmp}-BranchJanMaster-inventorycountdetails"12列の内容:
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.BranchName(店舗名) 5.製品CD 
 		#6.productname(原料名) 7.costprice(単価(原料)) 8.countqty(数量) 9.sellbydate(賞味期限) 10.specname(規格) 
-		#11.registered(棚卸日YYYYMMDD) 12.registered(棚卸日HH:MI:SS)	
+		#11.終了棚卸日(棚卸日YYYYMMDD) 12.registered(棚卸日HH:MI:SS)	
 else
   ERROR_EXIT
 fi
@@ -111,7 +134,7 @@ if [ -s ${tmp}-BranchJanMaster-inventorycountdetails -a -s ${masterd}/BranchJanM
 		#テキスト"${tmp}-rate"13列の内容:
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名) 
 		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.sellbydate(賞味期限)
-		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS)		
+		#11.specname(規格) 12.終了棚卸日(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS)		
 else
   ERROR_EXIT
 fi
@@ -122,12 +145,12 @@ if [ -s ${tmp}-rate ];then
 		cat ${tmp}-rate                                                                                 |
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名) 
 		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.sellbydate(賞味期限)
-		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS)		
+		#11.specname(規格) 12.終了棚卸日(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS)		
 		scalc '$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$8*$9*$4'                                     >${tmp}-dala
 		#テキスト"${tmp}-rate"14列の内容:
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名) 
 		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.sellbydate(賞味期限)
-		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー		
+		#11.specname(規格) 12.終了棚卸日(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー		
 else
   ERROR_EXIT
 fi
@@ -163,7 +186,7 @@ if [ -s ${tmp}-materialcheckdatainfo -a -s ${tmp}-dala ];then
 		#テキスト"${tmp}-materialcheckdatainfo-dala-deal-1"14列の内容:
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名) 
 		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.dala_sellbydate(賞味期限)
-		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー				
+		#11.specname(規格) 12.終了棚卸日(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー				
 else
   ERROR_EXIT
 fi
@@ -174,12 +197,12 @@ if [ -s ${tmp}-materialcheckdatainfo -a -s ${tmp}-dala ];then
 		hijoin -k2,3  ${tmp}-materialcheckdatainfo  ${tmp}-dala                                         |
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.materialcheckdatainfo_賞味期限 5.売価倍率
 		#6.BranchName(店舗名) 7.製品CD 8.productname(原料名) 9.costprice(単価(原料)) 10.countqty(数量) 
-		#11.dala_sellbydate(賞味期限) 12.specname(規格) 13.registered(棚卸日YYYYMMDD) 14.registered(棚卸日HH:MI:SS) 15.ダラー
+		#11.dala_sellbydate(賞味期限) 12.specname(規格) 13.終了棚卸日(棚卸日YYYYMMDD) 14.registered(棚卸日HH:MI:SS) 15.ダラー
 		selcol -c1,3 -c5,11 -c4 -c12,15                                                                 >${tmp}-materialcheckdatainfo-dala
 		#テキスト"${tmp}-materialcheckdatainfo-dala"15列の内容:
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名)
 		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.dala_sellbydate(賞味期限)
-		#11.materialcheckdatainfo_賞味期限 12.specname(規格) 13.registered(棚卸日YYYYMMDD) 14.registered(棚卸日HH:MI:SS) 15.ダラー					
+		#11.materialcheckdatainfo_賞味期限 12.specname(規格) 13.終了棚卸日(棚卸日YYYYMMDD) 14.registered(棚卸日HH:MI:SS) 15.ダラー					
 else
   ERROR_EXIT
 fi
@@ -192,14 +215,14 @@ if [ -s ${tmp}-materialcheckdatainfo-dala ];then
 		#テキスト"${tmp}-materialcheckdatainfo-dala-deal"14列の内容:
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名)
 		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.materialcheckdatainfo_賞味期限
-		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー	
+		#11.specname(規格) 12.終了棚卸日(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー	
 	elif [ "${paraFlag}" == "1" ];then
 		cat ${tmp}-materialcheckdatainfo-dala                                         |
 		delcol -c11                                                                   >${tmp}-materialcheckdatainfo-dala-deal-2
 		#テキスト"${tmp}-materialcheckdatainfo-dala-deal"14列の内容:
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名)
 		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.dala_sellbydate(賞味期限)
-		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー	
+		#11.specname(規格) 12.終了棚卸日(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー	
 	else 
 		ERROR_EXIT
 	fi 
@@ -213,11 +236,11 @@ if [ -e ${tmp}-materialcheckdatainfo-dala-deal-1 -a -e ${tmp}-materialcheckdatai
 		cat ${tmp}-materialcheckdatainfo-dala-deal-1 ${tmp}-materialcheckdatainfo-dala-deal-2   |
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.productcd(JAN(原料)) 4.売価倍率 5.BranchName(店舗名)
 		#6.製品CD 7.productname(原料名) 8.costprice(単価(原料)) 9.countqty(数量) 10.賞味期限
-		#11.specname(規格) 12.registered(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー	
+		#11.specname(規格) 12.終了棚卸日(棚卸日YYYYMMDD) 13.registered(棚卸日HH:MI:SS) 14.ダラー	
 		selcol -c1,2 -c5,6 -c3 -c7 -c12 -c13 -c10 -c9 -c14                                        >${tmp}-materialcheckdatainfo-dala-union	
 		#テキスト"${tmp}-materialcheckdatainfo-dala-union"10列の内容:
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.BranchName(店舗名) 4.製品CD 5.productcd(JAN(原料)) 
-		#6.productname(原料名) 7.registered(棚卸日YYYYMMDD) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.賞味期限 10.countqty(数量) 
+		#6.productname(原料名) 7.終了棚卸日(棚卸日YYYYMMDD) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.賞味期限 10.countqty(数量) 
 		#11.ダラー
 else
   ERROR_EXIT
@@ -228,11 +251,11 @@ fi
 if [ -s ${tmp}-materialcheckdatainfo-dala-union ];then 
 		cat ${tmp}-materialcheckdatainfo-dala-union                                                       |
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.BranchName(店舗名) 4.製品CD 5.productcd(JAN(原料)) 
-		#6.productname(原料名) 7.registered(棚卸日YYYYMMDD) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.賞味期限 10.countqty(数量) 
+		#6.productname(原料名) 7.終了棚卸日(棚卸日YYYYMMDD) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.賞味期限 10.countqty(数量) 
 		#11.ダラー	
 		selcol -c1,3 -c5 -c6 -c4 -c7,11                                                                  |
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.BranchName(店舗名) 4.productcd(JAN(原料)) 5.productname(原料名)
-		#6.製品CD 7.registered(棚卸日YYYYMMDD)(日付) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.賞味期限 10.countqty(数量)(ユニット) 
+		#6.製品CD 7.終了棚卸日(棚卸日YYYYMMDD)(日付) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.賞味期限 10.countqty(数量)(ユニット) 
 		#11.ダラー
 		ssort -k1,9 | toh -k1,8 | awk '{                  \
 		for(i=9;i<=NF;i=i+3)                              \
@@ -241,7 +264,7 @@ if [ -s ${tmp}-materialcheckdatainfo-dala-union ];then
 		i==9?$11=$11:$11=$11+$(i+2)};                     \
 		{print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11}}'	                                                    |
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.BranchName(店舗名) 4.productcd(JAN(原料)) 5.productname(原料名)
-		#6.製品CD 7.registered(棚卸日YYYYMMDD)(日付) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.賞味期限 10.countqty(数量)(ユニット) 
+		#6.製品CD 7.終了棚卸日(棚卸日YYYYMMDD)(日付) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.賞味期限 10.countqty(数量)(ユニット) 
 		#11.ダラー
 		selcol -c2 -c6 -c7 -c1 -c3 -c4 -c5 -c8 -c10,11 -c9                           >/TORASINNYOU/TBL/DATAAUDIT/Inventory
 		#テキスト"/TORASINNYOU/TBL/DATAAUDIT/Inventory"11列の内容:
