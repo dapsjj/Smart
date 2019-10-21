@@ -266,10 +266,10 @@ if [ -s ${tmp}-materialcheckdatainfo-dala-union ];then
 		#1.09棚卸数 2.inventoryscheduleid(店CD) 3.BranchName(店舗名) 4.productcd(JAN(原料)) 5.productname(原料名)
 		#6.製品CD 7.終了棚卸日(棚卸日YYYYMMDD)(日付) 8.registered(棚卸日HH:MI:SS)(時間帯CD) 9.賞味期限 10.countqty(数量)(ユニット) 
 		#11.ダラー
-		selcol -c2 -c6 -c7 -c1 -c3 -c4 -c5 -c8 -c10,11 -c9                           >/TORASINNYOU/TBL/DATAAUDIT/Inventory
+		selcol -c2 -c4 -c7 -c1 -c3 -c6 -c5 -c8 -c10,11 -c9                           >/TORASINNYOU/TBL/DATAAUDIT/Inventory
 		#テキスト"/TORASINNYOU/TBL/DATAAUDIT/Inventory"11列の内容:
-		#1.拠点CD 2.製品CD 3.日付 4.区分 5.店舗名 
-		#6.productcd(JAN(原料)) 7.productname(原料名) 8.時間帯CD 9.SUM(数量) 10.SUM(ダラー) 11.賞味期限
+		#1.拠点CD 2.productcd(JAN(原料)) 3.日付 4.区分 5.店舗名 
+		#6.製品CD 7.productname(原料名) 8.時間帯CD 9.SUM(数量) 10.SUM(ダラー) 11.賞味期限
 else
   ERROR_EXIT
 fi
@@ -277,6 +277,6 @@ fi
 
 
 # 終了
-#rm -Rf ${tmp}-* &>/dev/null
+rm -Rf ${tmp}-* &>/dev/null
 exit 0
 
